@@ -1,0 +1,338 @@
+PointTank joined queue as tank (2009 elo).
+Seven joined queue as dps (2150 elo).
+Gonchi joined queue as dps (2203 elo).
+Mosticard joined queue as tank (1432 elo).
+Yoinko joined queue as dps (1752 elo).
+Eagle joined queue as tank (1932 elo).
+Km joined queue as dps (1771 elo).
+Indi joined queue as dps (1800 elo).
+PJ joined queue as tank (1742 elo).
+Gio joined queue as dps (1753 elo).
+Spirit joined queue as dps (1754 elo).
+Gigi joined queue as sup (1472 elo).
+Destro joined queue as flex (1638 elo).
+Shax joined queue as dps_sup (1697 elo).
+Sango joined queue as sup (1548 elo).
+Yulwe joined queue as dps_sup (1672 elo).
+Foxys joined queue as dps_tank (1855 elo).
+Scorchable joined queue as tank_sup (1457 elo).
+Fywr joined queue as flex (1941 elo).
+
+=== QUEUE ===
+PointTank | tank | tier 3 | 2009 elo
+Seven | dps | tier 3 | 2150 elo
+Gonchi | dps | tier 3 | 2203 elo
+Mosticard | tank | tier 3 | 1432 elo
+Yoinko | dps | tier 3 | 1752 elo
+Eagle | tank | tier 3 | 1932 elo
+Km | dps | tier 3 | 1771 elo
+Indi | dps | tier 3 | 1800 elo
+PJ | tank | tier 3 | 1742 elo
+Gio | dps | tier 3 | 1753 elo
+Spirit | dps | tier 3 | 1754 elo
+Gigi | sup | tier 3 | 1472 elo
+Destro | flex | tier 1 | 1638 elo
+Shax | dps_sup | tier 2 | 1697 elo
+Sango | sup | tier 3 | 1548 elo
+Yulwe | dps_sup | tier 2 | 1672 elo
+Foxys | dps_tank | tier 2 | 1855 elo
+Scorchable | tank_sup | tier 2 | 1457 elo
+Fywr | flex | tier 1 | 1941 elo
+
+======================
+=== FINAL MATCH FOUND ===
+======================
+
+Chosen Match ID: 9
+Theoretical Best Elo Difference: 1.2
+Theoretical Match Avg Elo: 1854.4
+Theoretical Team A Avg Elo: 1855.0
+Theoretical Team B Avg Elo: 1853.8
+
+Final Match Elo Difference: 2.8
+Final Match Avg Elo: 1854.4
+Final Team A Avg Elo: 1853.0
+Final Team B Avg Elo: 1855.8
+
+Matches Before Support Filter: 126
+Matches After Support Filter: 126
+Matches Inside Elo Range: 10
+Matches With Best Role Score: 3
+Chosen Match Role Score: 130
+Chosen Match Role Score Difference: 0
+
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1853.0
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Km | selected: dps | playing: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | playing: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+Team B:
+Average Elo: 1855.8
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | tier: 3 | elo: 1752
+
+=== BEST ROLE SCORE MATCHES ===
+Match 5 | Avg Elo Diff: 3.2 | Role Score: 130 | Role Diff: 0
+Match 7 | Avg Elo Diff: 10.4 | Role Score: 130 | Role Diff: 0
+Match 9 | Avg Elo Diff: 2.8 | Role Score: 130 | Role Diff: 0
+
+=== VALID MATCHES INSIDE ELO RANGE ===
+
+--- Match 1 ---
+Average Elo Team A: 1855.0
+Average Elo Team B: 1853.8
+Average Elo Difference: 1.2
+Role Score: 90
+Role Score Difference: 40
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1855.0
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Eagle | selected: tank | tier: 3 | elo: 1932
+
+Team B:
+Average Elo: 1853.8
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Km | selected: dps | playing: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+--- Match 2 ---
+Average Elo Team A: 1858.8
+Average Elo Team B: 1850.0
+Average Elo Difference: 8.8
+Role Score: 90
+Role Score Difference: 40
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1858.8
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Km | selected: dps | playing: dps | tier: 3 | elo: 1771
+- Eagle | selected: tank | tier: 3 | elo: 1932
+
+Team B:
+Average Elo: 1850.0
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Indi | selected: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+--- Match 3 ---
+Average Elo Team A: 1853.0
+Average Elo Team B: 1855.8
+Average Elo Difference: 2.8
+Role Score: 5
+Role Score Difference: 35
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1853.0
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Eagle | selected: tank | tier: 3 | elo: 1932
+- PJ | selected: tank | tier: 3 | elo: 1742
+
+Team B:
+Average Elo: 1855.8
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Km | selected: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+--- Match 4 ---
+Average Elo Team A: 1855.2
+Average Elo Team B: 1853.6
+Average Elo Difference: 1.6
+Role Score: 90
+Role Score Difference: 40
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1855.2
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gio | selected: dps | playing: dps | tier: 3 | elo: 1753
+- Eagle | selected: tank | tier: 3 | elo: 1932
+
+Team B:
+Average Elo: 1853.6
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Km | selected: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | tier: 3 | elo: 1800
+
+--- Match 5 ---
+Average Elo Team A: 1852.8
+Average Elo Team B: 1856.0
+Average Elo Difference: 3.2
+Role Score: 130
+Role Score Difference: 0
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1852.8
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Km | selected: dps | playing: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | tier: 3 | elo: 1800
+
+Team B:
+Average Elo: 1856.0
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+--- Match 6 ---
+Average Elo Team A: 1847.0
+Average Elo Team B: 1861.8
+Average Elo Difference: 14.8
+Role Score: 90
+Role Score Difference: 40
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1847.0
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Indi | selected: dps | playing: dps | tier: 3 | elo: 1800
+- PJ | selected: tank | tier: 3 | elo: 1742
+
+Team B:
+Average Elo: 1861.8
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Km | selected: dps | tier: 3 | elo: 1771
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+--- Match 7 ---
+Average Elo Team A: 1849.2
+Average Elo Team B: 1859.6
+Average Elo Difference: 10.4
+Role Score: 130
+Role Score Difference: 0
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1849.2
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Yoinko | selected: dps | playing: dps | tier: 3 | elo: 1752
+- Indi | selected: dps | playing: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+Team B:
+Average Elo: 1859.6
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Km | selected: dps | tier: 3 | elo: 1771
+
+--- Match 8 ---
+Average Elo Team A: 1850.8
+Average Elo Team B: 1858.0
+Average Elo Difference: 7.2
+Role Score: 90
+Role Score Difference: 40
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1850.8
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Km | selected: dps | playing: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | playing: dps | tier: 3 | elo: 1800
+- PJ | selected: tank | tier: 3 | elo: 1742
+
+Team B:
+Average Elo: 1858.0
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | tier: 3 | elo: 1752
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+--- Match 9 ---
+Average Elo Team A: 1853.0
+Average Elo Team B: 1855.8
+Average Elo Difference: 2.8
+Role Score: 130
+Role Score Difference: 0
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1853.0
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Km | selected: dps | playing: dps | tier: 3 | elo: 1771
+- Indi | selected: dps | playing: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | tier: 3 | elo: 1753
+
+Team B:
+Average Elo: 1855.8
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- PJ | selected: tank | playing: tank | tier: 3 | elo: 1742
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | tier: 3 | elo: 1752
+
+--- Match 10 ---
+Average Elo Team A: 1847.2
+Average Elo Team B: 1861.6
+Average Elo Difference: 14.4
+Role Score: 90
+Role Score Difference: 40
+Pure Supports Team A: 0
+Pure Supports Team B: 0
+
+Team A:
+Average Elo: 1847.2
+- PointTank | selected: tank | playing: tank | tier: 3 | elo: 2009
+- Eagle | selected: tank | playing: tank | tier: 3 | elo: 1932
+- Indi | selected: dps | playing: dps | tier: 3 | elo: 1800
+- Gio | selected: dps | playing: dps | tier: 3 | elo: 1753
+- PJ | selected: tank | tier: 3 | elo: 1742
+
+Team B:
+Average Elo: 1861.6
+- Mosticard | selected: tank | playing: tank | tier: 3 | elo: 1432
+- Seven | selected: dps | playing: dps | tier: 3 | elo: 2150
+- Gonchi | selected: dps | playing: dps | tier: 3 | elo: 2203
+- Yoinko | selected: dps | tier: 3 | elo: 1752
+- Km | selected: dps | tier: 3 | elo: 1771

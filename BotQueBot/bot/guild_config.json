@@ -1,0 +1,51 @@
+{
+  "1363341336341909535": {
+    "admin_match_panel_channel_id": 1513233930113777695,
+    "associate_role_id": 1363451246152777860,
+    "bot_report_channel_id": 1513233894160470208,
+    "elo_nickname_enabled": true,
+    "in_game_role_id": 1363588709412507789,
+    "in_queue_role_id": 1363585097034629361,
+    "losing_streak_role_id": 1515039308489293955,
+    "match_results_channel_id": 1363595680920371230,
+    "queue_channel_id": 1513233423055978659,
+    "queue_locked": false,
+    "rank_role_ids": {
+      "goodmaster": 1400864405096235082,
+      "grandmaster": 1364376699898433568,
+      "greatmaster": 1400864669329133640,
+      "mustard_gas": 1400881879426666647,
+      "super_grandmaster": 1364376811131240548,
+      "super_grandmaster_god": 1369914326286336000,
+      "woodhuman": 1423461654695378967
+    },
+    "rank_role_sync_enabled": true,
+    "sent_home_role_id": 1407139093963345950,
+    "ultra_boss_instinct_role_id": 1368626385131671632
+  },
+  "1510197591940534425": {
+    "admin_match_panel_channel_id": 1510201902846181437,
+    "associate_role_id": 1512569221664473303,
+    "bot_report_channel_id": 1512447506766626816,
+    "elo_nickname_enabled": true,
+    "in_game_role_id": 1512234614456979476,
+    "in_game_role_name": "IN GAME",
+    "in_queue_role_id": 1512792120170385639,
+    "losing_streak_role_id": 1514791476557647874,
+    "match_results_channel_id": 1512236684090146828,
+    "queue_channel_id": 1512153474022772897,
+    "queue_locked": false,
+    "rank_role_ids": {
+      "goodmaster": 1512561598265430148,
+      "grandmaster": 1512561831384842381,
+      "greatmaster": 1512561775994998944,
+      "mustard_gas": 1512561530963496991,
+      "super_grandmaster": 1512561846874542221,
+      "super_grandmaster_god": 1512561848963301436,
+      "woodhuman": 1512561563129876600
+    },
+    "rank_role_sync_enabled": true,
+    "sent_home_role_id": 1512569249569308822,
+    "ultra_boss_instinct_role_id": 1512569254967251116
+  }
+}

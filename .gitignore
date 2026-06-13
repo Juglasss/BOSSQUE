@@ -1,0 +1,28 @@
+# Keep local-only config out by default, but upload BotQueBot/.env
+# because this project intentionally shares the non-Discord settings.
+.env
+*.env
+!BotQueBot/.env
+
+# Python local/generated files
+BotQueBot/BackEnd/venv/
+venv/
+.venv/
+**/__pycache__/
+*.py[cod]
+
+# Node local/generated files
+node_modules/
+RefmanBot/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
