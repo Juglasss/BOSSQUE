@@ -2081,11 +2081,9 @@ def register_queue_commands(bot, send_queue_panel):
             )
 
             if self.match_thread is not None:
-                bot.loop.create_task(
-                    remove_in_game_role_from_match(
-                        self.match_thread,
-                        self.match
-                    )
+                await remove_in_game_role_from_match(
+                    self.match_thread,
+                    self.match
                 )
                 await self.close_match_thread("Round Table admin cancelled match")
 
@@ -2121,11 +2119,9 @@ def register_queue_commands(bot, send_queue_panel):
                 return
 
             if self.match_thread is not None:
-                bot.loop.create_task(
-                    remove_in_game_role_from_match(
-                        self.match_thread,
-                        self.match
-                    )
+                await remove_in_game_role_from_match(
+                    self.match_thread,
+                    self.match
                 )
 
             try:
@@ -2231,22 +2227,23 @@ def register_queue_commands(bot, send_queue_panel):
 
             self.completed = True
 
-            bot.loop.create_task(
-                remove_in_game_role_from_match(
-                    interaction.channel,
-                    self.match
-                )
+            try:
+                await interaction.response.defer()
+            except (discord.NotFound, discord.HTTPException):
+                pass
+
+            await remove_in_game_role_from_match(
+                interaction.channel,
+                self.match
             )
 
             for item in self.children:
                 item.disabled = True
 
             try:
-                await interaction.response.edit_message(view=self)
-            except (discord.NotFound, discord.HTTPException):
-                active_matches_by_thread_id.pop(interaction.channel.id, None)
-                active_cancel_votes_by_thread_id.pop(interaction.channel.id, None)
-                return
+                await interaction.message.edit(view=self)
+            except (discord.NotFound, discord.HTTPException, AttributeError):
+                pass
 
             try:
                 complete_backend_match(self.match, winner)
