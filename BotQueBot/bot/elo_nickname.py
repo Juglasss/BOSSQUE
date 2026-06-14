@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from pathlib import Path
 
 import discord
@@ -11,6 +12,30 @@ ELO_NICKNAME_STATE_FILE = Path(__file__).with_name("elo_nickname_state.json")
 ELO_SUFFIX_PATTERN = re.compile(r"\s+-\s+\(\d+(?:\.\d+)?\)$")
 DISCORD_NICKNAME_LIMIT = 32
 MIN_DISCORD_SNOWFLAKE_LENGTH = 15
+MEMBER_MISSING_CACHE_SECONDS = 300
+
+member_cache = {}
+member_missing_cache = {}
+
+
+async def warm_member_cache(bot, guild_ids=None):
+    target_guild_ids = (
+        {int(guild_id) for guild_id in guild_ids}
+        if guild_ids is not None
+        else None
+    )
+
+    for guild in bot.guilds:
+        if target_guild_ids is not None and guild.id not in target_guild_ids:
+            continue
+
+        if getattr(guild, "chunked", False):
+            continue
+
+        try:
+            await guild.chunk(cache=True)
+        except discord.DiscordException:
+            continue
 
 
 def load_elo_nickname_enabled():
@@ -52,14 +77,33 @@ async def find_member(bot, discord_id, guild_id=None):
         guilds = [guild] if guild is not None else []
 
     for guild in guilds:
+        cache_key = (guild.id, member_id)
         member = guild.get_member(member_id)
+
+        if member is not None:
+            member_cache[cache_key] = member
+            return member
+
+        member = member_cache.get(cache_key)
 
         if member is not None:
             return member
 
+        missing_at = member_missing_cache.get(cache_key)
+
+        if (
+            missing_at is not None
+            and time.monotonic() - missing_at < MEMBER_MISSING_CACHE_SECONDS
+        ):
+            continue
+
         try:
-            return await guild.fetch_member(member_id)
+            member = await guild.fetch_member(member_id)
+            member_cache[cache_key] = member
+            member_missing_cache.pop(cache_key, None)
+            return member
         except discord.NotFound:
+            member_missing_cache[cache_key] = time.monotonic()
             continue
 
     return None

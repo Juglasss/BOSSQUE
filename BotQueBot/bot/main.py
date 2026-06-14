@@ -24,6 +24,7 @@ from elo_nickname import (
     find_member,
     sync_all_elo_nicknames,
     sync_member_elo_nickname,
+    warm_member_cache,
 )
 from rank_roles import (
     sync_all_losing_streak_roles,
@@ -507,35 +508,31 @@ async def on_ready():
     if rating_decay_task is None or rating_decay_task.done():
         rating_decay_task = bot.loop.create_task(watch_rating_decay())
 
-    try:
-        players = all_backend_players()
-
-        for guild_id in active_configured_guild_ids:
-            await sync_all_elo_nicknames(
-                bot,
-                players,
-                guild_id=guild_id
-            )
-    except requests.RequestException:
-        pass
+    await warm_member_cache(bot, active_configured_guild_ids)
 
     try:
         players = all_backend_players()
-
-        for guild_id in active_configured_guild_ids:
-            await sync_all_rank_roles(bot, players, guild_id=guild_id)
-            await sync_all_ultra_boss_instinct_roles(
-                bot,
-                players,
-                guild_id=guild_id
-            )
-            await sync_all_losing_streak_roles(
-                bot,
-                players,
-                guild_id=guild_id
-            )
     except requests.RequestException:
-        pass
+        players = []
+
+    for guild_id in active_configured_guild_ids:
+        await sync_all_elo_nicknames(
+            bot,
+            players,
+            guild_id=guild_id
+        )
+
+        await sync_all_rank_roles(bot, players, guild_id=guild_id)
+        await sync_all_ultra_boss_instinct_roles(
+            bot,
+            players,
+            guild_id=guild_id
+        )
+        await sync_all_losing_streak_roles(
+            bot,
+            players,
+            guild_id=guild_id
+        )
 
     print(f"Logged in as {bot.user}")
 
@@ -589,9 +586,15 @@ async def watch_queue_inactivity():
                     continue
 
                 try:
-                    member = await channel.guild.fetch_member(
-                        int(player["discord_id"])
+                    member = await find_member(
+                        bot,
+                        player["discord_id"],
+                        channel.guild.id
                     )
+
+                    if member is None:
+                        continue
+
                     await remove_in_queue_role(member)
                 except (discord.HTTPException, ValueError):
                     pass

@@ -27,6 +27,12 @@ def format_queue_player(player):
     return f"**{player['username']}**"
 
 
+def queue_last_updated_text():
+    timestamp = int(discord.utils.utcnow().timestamp())
+
+    return f"**Last Updated <t:{timestamp}:t>**"
+
+
 def format_match_player(player):
     ign = getattr(player, "ign", "") or player.name
 
@@ -60,7 +66,7 @@ def build_queue_embed(current_queue, queue_locked=False):
             "**Queues Have Been Stopped!**\n"
             f"{QUEUE_PANEL_SPACER}\n"
             f"{QUEUE_PANEL_FOOTER_SPACER}\n"
-            f"**Last Updated {discord.utils.utcnow().strftime('%I:%M %p')}**"
+            f"{queue_last_updated_text()}"
         )
         return embed
 
@@ -110,7 +116,7 @@ def build_queue_embed(current_queue, queue_locked=False):
 
     description_parts.append(
         f"{QUEUE_PANEL_FOOTER_SPACER}\n"
-        f"**Last Updated {discord.utils.utcnow().strftime('%I:%M %p')}**"
+        f"{queue_last_updated_text()}"
     )
 
     embed.description = f"{QUEUE_PANEL_WIDTH_PAD}\n" + "\n".join(
@@ -244,16 +250,11 @@ def format_backend_timestamp(timestamp):
     try:
         parsed_timestamp = datetime.fromisoformat(
             timestamp.replace("Z", "+00:00")
-        ).astimezone()
+        )
     except ValueError:
         return timestamp
 
-    hour = parsed_timestamp.strftime("%I").lstrip("0") or "0"
-    return (
-        f"{parsed_timestamp.strftime('%B')} {parsed_timestamp.day}, "
-        f"{parsed_timestamp.year} {hour}:{parsed_timestamp.strftime('%M')} "
-        f"{parsed_timestamp.strftime('%p')}"
-    )
+    return f"<t:{int(parsed_timestamp.timestamp())}:f>"
 
 
 def build_admin_match_embed(match, backend_match=None):

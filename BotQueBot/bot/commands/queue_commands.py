@@ -288,6 +288,23 @@ def register_queue_commands(bot, send_queue_panel):
 
         return None
 
+    def latest_completed_match_map_key():
+        response = requests.get(f"{DJANGO_API_URL}/matches/")
+        response.raise_for_status()
+
+        payload = response.json()
+
+        if isinstance(payload, dict):
+            matches = payload.get("results", [])
+        else:
+            matches = payload
+
+        for match in matches:
+            if match.get("status") == "completed" and match.get("map_name"):
+                return match["map_name"]
+
+        return None
+
     def create_backend_match(match):
         response = requests.post(
             f"{DJANGO_API_URL}/matches/",
@@ -952,9 +969,15 @@ def register_queue_commands(bot, send_queue_panel):
                 continue
 
             try:
-                member = await channel.guild.fetch_member(
-                    int(player["discord_id"])
+                member = await find_member(
+                    bot,
+                    player["discord_id"],
+                    channel.guild.id
                 )
+
+                if member is None:
+                    continue
+
                 await add_in_queue_role(member)
             except (discord.Forbidden, discord.HTTPException, ValueError):
                 await send_bot_report(
@@ -968,9 +991,15 @@ def register_queue_commands(bot, send_queue_panel):
                 continue
 
             try:
-                member = await channel.guild.fetch_member(
-                    int(player["discord_id"])
+                member = await find_member(
+                    bot,
+                    player["discord_id"],
+                    channel.guild.id
                 )
+
+                if member is None:
+                    continue
+
                 await remove_in_queue_role(member)
             except (discord.Forbidden, discord.HTTPException, ValueError):
                 await send_bot_report(
@@ -984,7 +1013,15 @@ def register_queue_commands(bot, send_queue_panel):
                 continue
 
             try:
-                member = await channel.guild.fetch_member(int(player.discord_id))
+                member = await find_member(
+                    bot,
+                    player.discord_id,
+                    channel.guild.id
+                )
+
+                if member is None:
+                    continue
+
                 await add_in_game_role(member)
             except (
                 discord.Forbidden,
@@ -1002,9 +1039,15 @@ def register_queue_commands(bot, send_queue_panel):
                 continue
 
             try:
-                member = await channel.guild.fetch_member(
-                    int(player["discord_id"])
+                member = await find_member(
+                    bot,
+                    player["discord_id"],
+                    channel.guild.id
                 )
+
+                if member is None:
+                    continue
+
                 await add_in_game_role(member)
             except (
                 discord.Forbidden,
@@ -1736,10 +1779,15 @@ def register_queue_commands(bot, send_queue_panel):
         async def remove_one(discord_id, player_name):
             try:
                 discord_id = int(discord_id)
-                member = channel.guild.get_member(discord_id)
+                member = await find_member(
+                    bot,
+                    discord_id,
+                    channel.guild.id
+                )
 
                 if member is None:
-                    member = await channel.guild.fetch_member(discord_id)
+                    failures.append(player_name)
+                    return
 
                 await remove_in_game_role(member)
             except (
@@ -2586,20 +2634,22 @@ def register_queue_commands(bot, send_queue_panel):
             if map_choice["key"] not in excluded_keys
         ]
 
-    def choose_map_from_keys(map_pool, keys, selected_keys):
-        choices = available_maps_for_keys(map_pool, keys, selected_keys)
+    def choose_map_from_keys(map_pool, keys, selected_keys, blocked_keys=None):
+        unavailable_keys = selected_keys | (blocked_keys or set())
+        choices = available_maps_for_keys(map_pool, keys, unavailable_keys)
 
         if not choices:
-            choices = available_maps_not_excluded(map_pool, selected_keys)
+            choices = available_maps_not_excluded(map_pool, unavailable_keys)
 
         if not choices:
             return None
 
         return random.choice(choices)
 
-    def choose_weighted_second_map(map_pool, selected_keys):
+    def choose_weighted_second_map(map_pool, selected_keys, blocked_keys=None):
         preferred_keys = MAP_VOTE_POOL_1_KEYS
         fallback_keys = MAP_VOTE_POOL_2_KEYS
+        unavailable_keys = selected_keys | (blocked_keys or set())
 
         if random.random() >= MAP_VOTE_SECOND_OPTION_POOL_1_CHANCE:
             preferred_keys = MAP_VOTE_POOL_2_KEYS
@@ -2608,39 +2658,45 @@ def register_queue_commands(bot, send_queue_panel):
         choices = available_maps_for_keys(
             map_pool,
             preferred_keys,
-            selected_keys
+            unavailable_keys
         )
 
         if not choices:
             choices = available_maps_for_keys(
                 map_pool,
                 fallback_keys,
-                selected_keys
+                unavailable_keys
             )
 
         if not choices:
-            choices = available_maps_not_excluded(map_pool, selected_keys)
+            choices = available_maps_not_excluded(map_pool, unavailable_keys)
 
         if not choices:
             return None
 
         return random.choice(choices)
 
-    def choose_visible_map_vote_options(map_pool):
+    def choose_visible_map_vote_options(map_pool, blocked_map_key=None):
         selected_maps = []
         selected_keys = set()
+        blocked_keys = {blocked_map_key} if blocked_map_key else set()
 
         map_choice = choose_map_from_keys(
             map_pool,
             MAP_VOTE_POOL_1_KEYS,
-            selected_keys
+            selected_keys,
+            blocked_keys
         )
 
         if map_choice is not None:
             selected_maps.append(map_choice)
             selected_keys.add(map_choice["key"])
 
-        map_choice = choose_weighted_second_map(map_pool, selected_keys)
+        map_choice = choose_weighted_second_map(
+            map_pool,
+            selected_keys,
+            blocked_keys
+        )
 
         if map_choice is not None:
             selected_maps.append(map_choice)
@@ -2649,14 +2705,18 @@ def register_queue_commands(bot, send_queue_panel):
         map_choice = choose_map_from_keys(
             map_pool,
             MAP_VOTE_POOL_2_KEYS,
-            selected_keys
+            selected_keys,
+            blocked_keys
         )
 
         if map_choice is not None:
             selected_maps.append(map_choice)
             selected_keys.add(map_choice["key"])
 
-        for map_choice in available_maps_not_excluded(map_pool, selected_keys):
+        for map_choice in available_maps_not_excluded(
+            map_pool,
+            selected_keys | blocked_keys
+        ):
             if len(selected_maps) >= MAP_VOTE_VISIBLE_MAP_COUNT:
                 break
 
@@ -2669,14 +2729,26 @@ def register_queue_commands(bot, send_queue_panel):
         return selected_maps
 
     class MapVoteView(discord.ui.View):
-        def __init__(self, match, players, parent_channel, thread, map_pool):
+        def __init__(
+            self,
+            match,
+            players,
+            parent_channel,
+            thread,
+            map_pool,
+            blocked_map_key=None
+        ):
             super().__init__(timeout=MAP_VOTE_TIMEOUT_SECONDS)
             self.match = match
             self.players = players
             self.parent_channel = parent_channel
             self.thread = thread
             self.map_pool = map_pool
-            self.visible_maps = choose_visible_map_vote_options(self.map_pool)
+            self.blocked_map_key = blocked_map_key
+            self.visible_maps = choose_visible_map_vote_options(
+                self.map_pool,
+                self.blocked_map_key
+            )
             self.preview_image_url = "attachment://map_vote_preview.png"
             self.votes = {}
             self.completed = False
@@ -2773,7 +2845,15 @@ def register_queue_commands(bot, send_queue_panel):
             winning_key = random.choice(winning_keys)
 
             if winning_key == "random":
-                return random.choice(self.map_pool)
+                random_pool = available_maps_not_excluded(
+                    self.map_pool,
+                    {self.blocked_map_key} if self.blocked_map_key else set()
+                )
+
+                if not random_pool:
+                    random_pool = self.map_pool
+
+                return random.choice(random_pool)
 
             return next(
                 map_choice
@@ -3043,12 +3123,22 @@ def register_queue_commands(bot, send_queue_panel):
                     "was used for map select."
                 )
 
+            try:
+                blocked_map_key = latest_completed_match_map_key()
+            except requests.RequestException:
+                blocked_map_key = None
+                await send_bot_report(
+                    "Could not fetch the latest completed match, so no map "
+                    "was excluded from map select."
+                )
+
             view = MapVoteView(
                 match,
                 self.players,
                 self.parent_channel,
                 self.thread,
-                map_pool
+                map_pool,
+                blocked_map_key
             )
             file = map_vote_preview_file(view.visible_maps)
             view.message = await self.thread.send(
@@ -3264,7 +3354,12 @@ def register_queue_commands(bot, send_queue_panel):
                 continue
 
             try:
-                member = await thread.guild.fetch_member(int(discord_id))
+                member = await find_member(bot, discord_id, thread.guild.id)
+
+                if member is None:
+                    failed_players.append(player.get("username", str(discord_id)))
+                    continue
+
                 await member.send(
                     "Queue ready-check is ready. Please accept the queue."
                 )
@@ -5322,9 +5417,15 @@ def register_queue_commands(bot, send_queue_panel):
                     )
                     player_response.raise_for_status()
                     player = player_response.json()
-                    member = await interaction.guild.fetch_member(
-                        int(player["discord_id"])
+                    member = await find_member(
+                        bot,
+                        player["discord_id"],
+                        interaction.guild.id
                     )
+
+                    if member is None:
+                        raise ValueError("Discord member was not found.")
+
                     await remove_in_game_role(member)
                 except (
                     requests.RequestException,
