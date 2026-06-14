@@ -2120,6 +2120,14 @@ def register_queue_commands(bot, send_queue_panel):
                 )
                 return
 
+            if self.match_thread is not None:
+                bot.loop.create_task(
+                    remove_in_game_role_from_match(
+                        self.match_thread,
+                        self.match
+                    )
+                )
+
             try:
                 backend_match = set_backend_match_winner(self.match_id, winner_key)
             except requests.RequestException:
@@ -2131,6 +2139,7 @@ def register_queue_commands(bot, send_queue_panel):
 
             winner = winner_label(winner_key)
             self.match["backend_match"] = backend_match
+
             await send_match_result(
                 embed=build_match_result_embed(self.match, winner),
                 context=interaction
@@ -2142,12 +2151,6 @@ def register_queue_commands(bot, send_queue_panel):
             )
 
             if self.match_thread is not None:
-                bot.loop.create_task(
-                    remove_in_game_role_from_match(
-                        self.match_thread,
-                        self.match
-                    )
-                )
                 await self.close_match_thread("Round Table admin finished match")
 
         @discord.ui.button(
@@ -2238,6 +2241,13 @@ def register_queue_commands(bot, send_queue_panel):
                 active_cancel_votes_by_thread_id.pop(interaction.channel.id, None)
                 return
 
+            bot.loop.create_task(
+                remove_in_game_role_from_match(
+                    interaction.channel,
+                    self.match
+                )
+            )
+
             try:
                 complete_backend_match(self.match, winner)
                 await sync_completed_match_elo_nicknames(
@@ -2259,10 +2269,6 @@ def register_queue_commands(bot, send_queue_panel):
             await send_match_result(
                 embed=build_match_result_embed(self.match, winner),
                 context=interaction.channel
-            )
-
-            bot.loop.create_task(
-                remove_in_game_role_from_match(interaction.channel, self.match)
             )
 
             if isinstance(interaction.channel, discord.Thread):
