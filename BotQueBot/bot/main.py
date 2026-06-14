@@ -2,6 +2,7 @@ import discord
 import asyncio
 import json
 import requests
+import time
 from pathlib import Path
 from discord.ext import commands
 
@@ -43,11 +44,15 @@ QUEUE_INACTIVITY_MINUTES = 60
 QUEUE_INACTIVITY_CHECK_SECONDS = 15
 DECAY_CHECK_INTERVAL_SECONDS = 60
 QUEUE_PANEL_CLEANUP_HISTORY_LIMIT = 200
+QUEUE_PANEL_FULL_CLEANUP_SECONDS = 60
+QUEUE_PANEL_REFRESH_DEBOUNCE_SECONDS = 0.35
 STARTUP_QUEUE_PANEL_RETRY_SECONDS = 3
 queue_inactivity_task = None
 rating_decay_task = None
 startup_queue_panel_retry_task = None
 queue_panel_locks = {}
+queue_panel_refresh_versions = {}
+queue_panel_cleanup_timestamps = {}
 
 
 def load_panel_message_id():
@@ -231,17 +236,50 @@ def mark_queue_activity():
     queue_state.last_queue_activity_at = discord.utils.utcnow()
 
 
-def queue_panel_lock_for(channel):
-    lock_key = (
+def queue_panel_key(channel):
+    return (
         channel.guild.id
         if getattr(channel, "guild", None)
         else channel.id
     )
 
+
+def queue_panel_lock_for(channel):
+    lock_key = queue_panel_key(channel)
+
     if lock_key not in queue_panel_locks:
         queue_panel_locks[lock_key] = asyncio.Lock()
 
     return queue_panel_locks[lock_key]
+
+
+def next_queue_panel_refresh_version(channel):
+    panel_key = queue_panel_key(channel)
+    next_version = queue_panel_refresh_versions.get(panel_key, 0) + 1
+    queue_panel_refresh_versions[panel_key] = next_version
+
+    return next_version
+
+
+def latest_queue_panel_refresh_version(channel):
+    return queue_panel_refresh_versions.get(queue_panel_key(channel), 0)
+
+
+def should_cleanup_extra_queue_panels(channel, force_cleanup=False):
+    panel_key = queue_panel_key(channel)
+    now = time.monotonic()
+
+    if force_cleanup:
+        queue_panel_cleanup_timestamps[panel_key] = now
+        return True
+
+    last_cleanup_at = queue_panel_cleanup_timestamps.get(panel_key, 0)
+
+    if now - last_cleanup_at < QUEUE_PANEL_FULL_CLEANUP_SECONDS:
+        return False
+
+    queue_panel_cleanup_timestamps[panel_key] = now
+    return True
 
 
 async def configured_queue_channel_for_guild(guild_id):
@@ -293,7 +331,7 @@ async def refresh_startup_queue_panels():
             continue
 
         try:
-            await send_queue_panel(channel)
+            await send_queue_panel(channel, force_cleanup=True)
         except discord.HTTPException as error:
             print(
                 "Queue panel startup failed for "
@@ -616,8 +654,19 @@ async def watch_rating_decay():
                 await sync_player_discord_profile(player, guild_id)
 
 
-async def send_queue_panel(channel):
+async def send_queue_panel(channel, force_cleanup=False):
+    refresh_version = next_queue_panel_refresh_version(channel)
+
+    if not force_cleanup:
+        await asyncio.sleep(QUEUE_PANEL_REFRESH_DEBOUNCE_SECONDS)
+
+    if refresh_version != latest_queue_panel_refresh_version(channel):
+        return
+
     async with queue_panel_lock_for(channel):
+        if refresh_version != latest_queue_panel_refresh_version(channel):
+            return
+
         guild_key = str(channel.guild.id) if getattr(channel, "guild", None) else "default"
         previous_panel_message_id = queue_state.panel_message_ids.get(guild_key)
 
@@ -635,7 +684,8 @@ async def send_queue_panel(channel):
             except (discord.NotFound, discord.HTTPException):
                 pass
 
-        await cleanup_extra_queue_panels(channel, panel_message.id)
+        if should_cleanup_extra_queue_panels(channel, force_cleanup):
+            await cleanup_extra_queue_panels(channel, panel_message.id)
 
 
 async def cleanup_extra_queue_panels(channel, keep_message_id):
