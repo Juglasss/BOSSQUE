@@ -2231,6 +2231,13 @@ def register_queue_commands(bot, send_queue_panel):
 
             self.completed = True
 
+            bot.loop.create_task(
+                remove_in_game_role_from_match(
+                    interaction.channel,
+                    self.match
+                )
+            )
+
             for item in self.children:
                 item.disabled = True
 
@@ -2240,13 +2247,6 @@ def register_queue_commands(bot, send_queue_panel):
                 active_matches_by_thread_id.pop(interaction.channel.id, None)
                 active_cancel_votes_by_thread_id.pop(interaction.channel.id, None)
                 return
-
-            bot.loop.create_task(
-                remove_in_game_role_from_match(
-                    interaction.channel,
-                    self.match
-                )
-            )
 
             try:
                 complete_backend_match(self.match, winner)
