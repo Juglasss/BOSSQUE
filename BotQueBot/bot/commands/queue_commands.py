@@ -511,6 +511,28 @@ def register_queue_commands(bot, send_queue_panel):
             if player["id"] not in player_ids_to_remove
         ]
 
+    def refresh_queue_players_from_backend(players):
+        response = requests.get(f"{DJANGO_API_URL}/players/")
+        response.raise_for_status()
+
+        players_by_id = {
+            player["id"]: player
+            for player in response.json()
+        }
+        refreshed_players = []
+
+        for player in players:
+            refreshed_player = players_by_id.get(player["id"])
+
+            if refreshed_player is None:
+                raise ValueError(
+                    f"Player id {player['id']} no longer exists."
+                )
+
+            refreshed_players.append(refreshed_player)
+
+        return refreshed_players
+
     def cancel_pending_backend_matches():
         response = requests.get(f"{DJANGO_API_URL}/matches/")
         response.raise_for_status()
@@ -3495,12 +3517,24 @@ def register_queue_commands(bot, send_queue_panel):
             return []
 
         queued_players_for_match = queued_players_for_next_match()
+
+        try:
+            refreshed_players_for_match = refresh_queue_players_from_backend(
+                queued_players_for_match
+            )
+        except (requests.RequestException, ValueError) as error:
+            refreshed_players_for_match = queued_players_for_match
+            await send_bot_report(
+                "Could not refresh queued players before creating a match: "
+                f"{error}. Using queued snapshot values instead."
+            )
+
         remove_players_from_current_queue(queued_players_for_match)
-        reserve_players_for_match_flow(queued_players_for_match)
+        reserve_players_for_match_flow(refreshed_players_for_match)
         bot.loop.create_task(
             remove_in_queue_role_from_players(
                 channel,
-                queued_players_for_match
+                refreshed_players_for_match
             )
         )
         clear_last_queue_action()
@@ -3508,15 +3542,15 @@ def register_queue_commands(bot, send_queue_panel):
         schedule_queue_panel_refresh(channel)
 
         try:
-            await create_ready_check_thread(channel, queued_players_for_match)
-            return queued_players_for_match
+            await create_ready_check_thread(channel, refreshed_players_for_match)
+            return refreshed_players_for_match
         except discord.HTTPException:
-            requeue_players_at_front(queued_players_for_match)
-            release_players_from_match_flow(queued_players_for_match)
+            requeue_players_at_front(refreshed_players_for_match)
+            release_players_from_match_flow(refreshed_players_for_match)
             bot.loop.create_task(
                 add_in_queue_role_to_players(
                     channel,
-                    queued_players_for_match
+                    refreshed_players_for_match
                 )
             )
             schedule_queue_panel_refresh(channel)
