@@ -60,7 +60,7 @@ PALADINS_MAPS = [
 @dataclass
 class Player:
     name: str
-    elo: int
+    elo: float
     role_preference: str
     backend_id: int | None = None
     discord_id: str | None = None
@@ -407,7 +407,7 @@ def player_from_queue_entry(entry):
 
     return Player(
         name=entry["username"],
-        elo=int(entry["mmr"]),
+        elo=float(entry["mmr"]),
         role_preference=role_preference,
         backend_id=entry.get("id"),
         discord_id=entry.get("discord_id"),

@@ -45,7 +45,7 @@ QUEUE_INACTIVITY_CHECK_SECONDS = 15
 DECAY_CHECK_INTERVAL_SECONDS = 60
 QUEUE_PANEL_CLEANUP_HISTORY_LIMIT = 200
 QUEUE_PANEL_FULL_CLEANUP_SECONDS = 60
-QUEUE_PANEL_REFRESH_DEBOUNCE_SECONDS = 0.35
+QUEUE_PANEL_REFRESH_DEBOUNCE_SECONDS = 0.10
 STARTUP_QUEUE_PANEL_RETRY_SECONDS = 3
 queue_inactivity_task = None
 rating_decay_task = None
@@ -316,6 +316,11 @@ async def refresh_configured_queue_panel(context):
     return channel
 
 
+def schedule_queue_panel_refresh(channel):
+    if channel is not None:
+        bot.loop.create_task(send_queue_panel(channel))
+
+
 async def refresh_startup_queue_panels():
     active_configured_guild_ids = [
         guild.id
@@ -430,15 +435,8 @@ class QueuePanelView(discord.ui.View):
             )
             return
 
-        try:
-            await sync_member_elo_nickname(interaction.user, player)
-        except (discord.Forbidden, discord.HTTPException, ValueError):
-            pass
-
-        try:
-            await sync_member_rank_role(interaction.user, player)
-        except (discord.Forbidden, discord.HTTPException, ValueError):
-            pass
+        queue_channel = await configured_queue_channel_for_guild(guild_id)
+        matched_players = []
 
         async with queue_state.queue_flow_lock:
             if is_reserved_for_match(interaction.user.id):
@@ -457,6 +455,9 @@ class QueuePanelView(discord.ui.View):
 
             current_queue.append(player)
             bot.loop.create_task(add_in_queue_role_background(interaction.user))
+            bot.loop.create_task(
+                sync_player_discord_profile(player, interaction.guild.id)
+            )
 
             queue_state.last_queue_action["type"] = "joined"
             queue_state.last_queue_action["player"] = player["username"]
@@ -465,13 +466,14 @@ class QueuePanelView(discord.ui.View):
             queue_state.last_queue_action["message"] = None
             mark_queue_activity()
 
-            queue_channel = await refresh_configured_queue_panel(interaction)
-
             if create_match_if_queue_ready is not None and queue_channel is not None:
-                await create_match_if_queue_ready(
+                matched_players = await create_match_if_queue_ready(
                     queue_channel,
                     lock_already_held=True
                 )
+
+        if not matched_players:
+            schedule_queue_panel_refresh(queue_channel)
 
         await interaction.followup.send(
             "You joined the queue.",
@@ -494,6 +496,9 @@ class QueuePanelView(discord.ui.View):
             )
             return
 
+        guild_id = interaction.guild.id if interaction.guild else None
+        queue_channel = await configured_queue_channel_for_guild(guild_id)
+
         async with queue_state.queue_flow_lock:
             if player not in current_queue:
                 await interaction.followup.send(
@@ -512,7 +517,7 @@ class QueuePanelView(discord.ui.View):
             queue_state.last_queue_action["message"] = None
             mark_queue_activity()
 
-            await refresh_configured_queue_panel(interaction)
+        schedule_queue_panel_refresh(queue_channel)
 
         await interaction.followup.send(
             "You left the queue.",

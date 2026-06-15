@@ -63,6 +63,8 @@ class MatchPlayerSerializer(serializers.ModelSerializer):
             "mmr_before",
             "mmr_after",
             "mmr_change",
+            "role_tier_before",
+            "streak_before",
             "won",
         ]
 
@@ -79,6 +81,7 @@ class MatchSerializer(serializers.ModelSerializer):
             "id",
             "match_number",
             "created_at",
+            "completed_at",
             "status",
             "winner",
             "map_name",

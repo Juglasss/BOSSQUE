@@ -176,17 +176,18 @@ def format_result_team(team, backend_results):
             lines.append(f"* {player_name}")
             continue
 
-        mmr_before = result.get("mmr_before")
         mmr_after = result.get("mmr_after")
         mmr_change = result.get("mmr_change")
         sign = "+" if mmr_change and mmr_change > 0 else ""
 
-        if mmr_before is None or mmr_after is None or mmr_change is None:
+        if mmr_after is None or mmr_change is None:
             lines.append(f"* {player_name}")
             continue
 
+        previous_mmr = mmr_after - mmr_change
+
         lines.append(
-            f"* {player_name} `{mmr_before:.1f}` -> "
+            f"* {player_name} `{previous_mmr:.1f}` -> "
             f"**{sign}{mmr_change:.1f}** -> **{mmr_after:.1f}**"
         )
 
@@ -240,16 +241,16 @@ def admin_match_player_line(match_player, match_cancelled=False):
     mmr_after = match_player.get("mmr_after")
     mmr_change = match_player.get("mmr_change") or 0
 
-    if match_cancelled:
-        return f"{player_name} ({mmr_before:.1f}) -> **+0.0** -> {mmr_before:.1f}"
-
     if mmr_after is None:
-        return f"{player_name} ({mmr_before:.1f}) -> pending"
+        if match_cancelled:
+            return f"{player_name} start {mmr_before:.1f} | **+0.0**"
+
+        return f"{player_name} start {mmr_before:.1f} | pending"
 
     sign = "+" if mmr_change > 0 else ""
     return (
-        f"{player_name} ({mmr_before:.1f}) -> "
-        f"**{sign}{mmr_change:.1f}** -> {mmr_after:.1f}"
+        f"{player_name} start {mmr_before:.1f} | "
+        f"**{sign}{mmr_change:.1f}** | now {mmr_after:.1f}"
     )
 
 

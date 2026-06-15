@@ -44,6 +44,7 @@ class Match(models.Model):
     ]
 
     created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
 
     match_number = models.PositiveIntegerField(
         unique=True,
@@ -142,6 +143,8 @@ class MatchPlayer(models.Model):
     mmr_before = models.FloatField()
     mmr_after = models.FloatField(blank=True, null=True)
     mmr_change = models.FloatField(default=0)
+    role_tier_before = models.PositiveIntegerField(blank=True, null=True)
+    streak_before = models.IntegerField(blank=True, null=True)
 
     won = models.BooleanField(blank=True, null=True)
 

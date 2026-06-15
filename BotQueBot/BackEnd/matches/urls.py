@@ -33,6 +33,12 @@ urlpatterns = [
     ),
 
     path(
+        "matches/<int:pk>/set-cancelled-winner/",
+        views.set_cancelled_match_winner,
+        name="match-set-cancelled-winner"
+    ),
+
+    path(
         "matches/<int:pk>/punish-cancel/",
         views.punish_cancel_match,
         name="match-punish-cancel"

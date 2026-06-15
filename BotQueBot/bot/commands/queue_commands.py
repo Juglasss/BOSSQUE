@@ -84,6 +84,7 @@ MapChoice = Literal[
 ]
 ToggleChoice = Literal["on", "off"]
 RegionChoice = Literal["NA", "EU", "LATAM"]
+WinnerChoice = Literal["team_1", "team_2"]
 
 MAPS_BY_KEY = {
     map_choice["key"]: map_choice
@@ -246,6 +247,10 @@ def register_queue_commands(bot, send_queue_panel):
 
         await send_queue_panel(channel)
         return channel
+
+    def schedule_queue_panel_refresh(channel):
+        if channel is not None:
+            bot.loop.create_task(send_queue_panel(channel))
 
     def average_team_mmr(team):
         return sum(player.elo for player in team) / len(team)
@@ -417,6 +422,16 @@ def register_queue_commands(bot, send_queue_panel):
         response.raise_for_status()
         return response.json()
 
+    def set_cancelled_backend_match_winner(match_id, winner):
+        response = requests.post(
+            f"{DJANGO_API_URL}/matches/{match_id}/set-cancelled-winner/",
+            json={
+                "winner": winner,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
     def punish_cancel_backend_match(match_id, punished_discord_id):
         response = requests.post(
             f"{DJANGO_API_URL}/matches/{match_id}/punish-cancel/",
@@ -505,6 +520,7 @@ def register_queue_commands(bot, send_queue_panel):
             for match in response.json()
             if match["status"] == "pending"
         ]
+        cancelled_matches = []
 
         for match in pending_matches:
             response = requests.patch(
@@ -514,8 +530,9 @@ def register_queue_commands(bot, send_queue_panel):
                 },
             )
             response.raise_for_status()
+            cancelled_matches.append(response.json())
 
-        return pending_matches
+        return cancelled_matches
 
     def pending_backend_matches():
         response = requests.get(f"{DJANGO_API_URL}/matches/")
@@ -1967,6 +1984,68 @@ def register_queue_commands(bot, send_queue_panel):
         for player in backend_match.get("affected_players", []):
             await sync_player_discord_profile(player, guild_id)
 
+    async def refresh_admin_panel_for_backend_match(backend_match):
+        match_id = backend_match.get("id")
+
+        if match_id is None:
+            return False
+
+        admin_view = active_admin_match_views_by_match_id.get(match_id)
+
+        if admin_view is not None:
+            await admin_view.refresh_panel(backend_match)
+
+    async def cleanup_active_match_thread_for_backend_match(
+        backend_match,
+        reason,
+        role_context=None
+    ):
+        match_id = backend_match.get("id")
+
+        if match_id is None:
+            return False
+
+        active_thread_id = None
+        active_match = None
+
+        for thread_id, match in list(active_matches_by_thread_id.items()):
+            if match.get("backend_match_id") == match_id:
+                active_thread_id = thread_id
+                active_match = match
+                break
+
+        if active_thread_id is None:
+            return False
+
+        active_matches_by_thread_id.pop(active_thread_id, None)
+        active_cancel_votes_by_thread_id.pop(active_thread_id, None)
+
+        if active_match is not None and role_context is not None:
+            bot.loop.create_task(
+                remove_in_game_role_from_match(role_context, active_match)
+            )
+
+        thread = bot.get_channel(active_thread_id)
+
+        if thread is None:
+            try:
+                thread = await bot.fetch_channel(active_thread_id)
+            except (discord.NotFound, discord.HTTPException):
+                thread = None
+
+        if isinstance(thread, discord.Thread):
+            try:
+                await thread.delete(reason=reason)
+            except (discord.NotFound, discord.HTTPException):
+                pass
+
+        return True
+
+    async def report_match_cancelled(actor, match_number, action):
+        await send_bot_report(
+            f"{actor.mention} {action} Queue `{match_number}`."
+        )
+
     def winner_label(winner_key):
         return "Team 1" if winner_key == "team_1" else "Team 2"
 
@@ -2077,6 +2156,11 @@ def register_queue_commands(bot, send_queue_panel):
                 backend_match,
                 f"Queue `{self.match_id}` was cancelled/reverted."
             )
+            await report_match_cancelled(
+                interaction.user,
+                display_match_number(self.match, backend_match),
+                "cancelled/reverted from the admin panel"
+            )
 
             if self.match_thread is not None:
                 await remove_in_game_role_from_match(
@@ -2116,10 +2200,23 @@ def register_queue_commands(bot, send_queue_panel):
                 )
                 return
 
-            if self.match_thread is not None:
-                await remove_in_game_role_from_match(
-                    self.match_thread,
-                    self.match
+            current_status = current_backend_match.get("status")
+
+            if current_status == "cancelled":
+                self.match["backend_match"] = current_backend_match
+                await self.refresh_panel(current_backend_match)
+                await interaction.followup.send(
+                    f"Queue `{self.match_id}` is cancelled and cannot have a winner set.",
+                    ephemeral=True
+                )
+                return
+
+            if current_status == "pending" and self.match_thread is not None:
+                bot.loop.create_task(
+                    remove_in_game_role_from_match(
+                        self.match_thread,
+                        self.match
+                    )
                 )
 
             try:
@@ -2230,9 +2327,11 @@ def register_queue_commands(bot, send_queue_panel):
             except (discord.NotFound, discord.HTTPException):
                 pass
 
-            await remove_in_game_role_from_match(
-                interaction.channel,
-                self.match
+            bot.loop.create_task(
+                remove_in_game_role_from_match(
+                    interaction.channel,
+                    self.match
+                )
             )
 
             for item in self.children:
@@ -2260,6 +2359,7 @@ def register_queue_commands(bot, send_queue_panel):
                     "Match result was clicked in Discord, but the backend "
                     f"update failed for queue {display_match_number(self.match)}."
                 )
+                return
 
             await send_match_result(
                 embed=build_match_result_embed(self.match, winner),
@@ -2515,6 +2615,13 @@ def register_queue_commands(bot, send_queue_panel):
 
             await channel.send(
                 "Cancel vote passed. This match has been cancelled."
+            )
+            await send_bot_report(
+                (
+                    "Players cancelled Queue "
+                    f"`{display_match_number(self.match)}` by vote."
+                ),
+                channel
             )
 
             bot.loop.create_task(
@@ -3398,7 +3505,7 @@ def register_queue_commands(bot, send_queue_panel):
         )
         clear_last_queue_action()
 
-        await send_queue_panel(channel)
+        schedule_queue_panel_refresh(channel)
 
         try:
             await create_ready_check_thread(channel, queued_players_for_match)
@@ -3412,7 +3519,7 @@ def register_queue_commands(bot, send_queue_panel):
                     queued_players_for_match
                 )
             )
-            await send_queue_panel(channel)
+            schedule_queue_panel_refresh(channel)
             await send_bot_report(
                 "Could not create a ready-check thread, so the players were "
                 "returned to the queue."
@@ -3492,6 +3599,7 @@ def register_queue_commands(bot, send_queue_panel):
                 "`/admincancelpendingmatches` - Cancel matches still waiting for a result.\n"
                 "`/admincancelgame match_number` - Revoke a match and reverse stored MMR changes.\n"
                 "`/adminchangewinner match_number` - Flip a completed match winner and recalculate Elo.\n"
+                "`/adminsetcancelledwinner match_number winner` - Restore a cancelled match with a winner.\n"
                 "`/admincancelbypunish match_number member` - Cancel/refund a match and punish one player.\n"
                 "`/adminwinbypunish match_number member` - Cancel a match and award the other team."
             ),
@@ -3606,53 +3714,84 @@ def register_queue_commands(bot, send_queue_panel):
             return
 
         backend_players = response.json()
+        test_players = [
+            player
+            for player in backend_players
+            if re.fullmatch(r"Test[0-9]+", player.get("username", ""))
+        ][:amount]
+        loaded_players = []
+        queue_channel = await configured_queue_channel(interaction)
 
-        async with queue_state.queue_flow_lock:
-            existing_player_ids = {
-                player["id"]
-                for player in current_queue
-            }
-            open_slots = max(0, 10 - len(current_queue))
-            load_limit = min(amount, open_slots)
-            test_players = [
-                player
-                for player in backend_players
-                if re.fullmatch(r"Test[0-9]+", player.get("username", ""))
-                and player["id"] not in existing_player_ids
-                and not discord_id_reserved_for_match(player.get("discord_id"))
-            ][:load_limit]
+        async def race_join_test_player(seed_player, delay):
+            await asyncio.sleep(delay)
+            matched_players = []
 
-            current_queue.extend(test_players)
-            bot.loop.create_task(
-                add_in_queue_role_to_players(interaction.channel, test_players)
-            )
+            try:
+                player = find_backend_player_by_discord_id(
+                    seed_player.get("discord_id")
+                )
+            except requests.RequestException:
+                return
 
-            if test_players:
-                last_player = test_players[-1]
+            if player is None:
+                return
+
+            discord_id = player.get("discord_id")
+
+            if discord_id_reserved_for_match(discord_id):
+                return
+
+            if player["id"] in {
+                queued_player["id"]
+                for queued_player in current_queue
+            }:
+                return
+
+            async with queue_state.queue_flow_lock:
+                if player["id"] in {
+                    queued_player["id"]
+                    for queued_player in current_queue
+                }:
+                    return
+
+                if discord_id_reserved_for_match(discord_id):
+                    return
+
+                current_queue.append(player)
+                loaded_players.append(player)
+
                 last_queue_action["type"] = "joined"
-                last_queue_action["player"] = last_player["username"]
-                last_queue_action["discord_id"] = last_player["discord_id"]
-                last_queue_action["mmr"] = last_player["mmr"]
+                last_queue_action["player"] = player["username"]
+                last_queue_action["discord_id"] = player["discord_id"]
+                last_queue_action["mmr"] = player["mmr"]
                 last_queue_action["message"] = None
                 mark_queue_activity()
-            elif not current_queue:
-                last_queue_action["type"] = None
-                last_queue_action["player"] = None
-                last_queue_action["discord_id"] = None
-                last_queue_action["mmr"] = None
-                last_queue_action["message"] = None
 
-            queue_channel = await refresh_configured_queue_panel(interaction)
+                if queue_channel is not None:
+                    matched_players = await create_match_if_queue_ready(
+                        queue_channel,
+                        lock_already_held=True
+                    )
 
-            if queue_channel is not None:
-                await create_match_if_queue_ready(
-                    queue_channel,
-                    lock_already_held=True
+            if not matched_players:
+                schedule_queue_panel_refresh(queue_channel)
+
+        await asyncio.gather(
+            *[
+                race_join_test_player(
+                    player,
+                    random.uniform(0.25, 0.75)
                 )
+                for player in test_players
+            ]
+        )
+
+        if not loaded_players and not current_queue:
+            clear_last_queue_action()
 
         await interaction.followup.send(
             (
-                f"Loaded {len(test_players)} test player(s). "
+                f"Race-loaded {len(loaded_players)} test player(s). "
                 f"Queue has {len(current_queue)} player(s)."
             ),
             ephemeral=True
@@ -3672,7 +3811,7 @@ def register_queue_commands(bot, send_queue_panel):
 
         await interaction.response.defer(ephemeral=True)
 
-        await load_test_players_into_queue(interaction, 10)
+        await load_test_players_into_queue(interaction, 14)
 
     @bot.tree.command(
         name="loadintoque",
@@ -3686,9 +3825,9 @@ def register_queue_commands(bot, send_queue_panel):
             )
             return
 
-        if amount < 1 or amount > 10:
+        if amount < 1 or amount > 14:
             await interaction.response.send_message(
-                "Choose a number between 1 and 10.",
+                "Choose a number between 1 and 14.",
                 ephemeral=True
             )
             return
@@ -3891,6 +4030,9 @@ def register_queue_commands(bot, send_queue_panel):
             )
             return
 
+        queue_channel = await configured_queue_channel(interaction)
+        matched_players = []
+
         async with queue_state.queue_flow_lock:
             if discord_id_reserved_for_match(member.id):
                 await interaction.followup.send(
@@ -3924,13 +4066,14 @@ def register_queue_commands(bot, send_queue_panel):
             last_queue_action["message"] = None
             mark_queue_activity()
 
-            queue_channel = await refresh_configured_queue_panel(interaction)
-
             if queue_channel is not None:
-                await create_match_if_queue_ready(
+                matched_players = await create_match_if_queue_ready(
                     queue_channel,
                     lock_already_held=True
                 )
+
+        if not matched_players:
+            schedule_queue_panel_refresh(queue_channel)
 
         await interaction.followup.send(
             f"Added {member.mention} to queue.",
@@ -3970,6 +4113,8 @@ def register_queue_commands(bot, send_queue_panel):
             )
             return
 
+        queue_channel = await configured_queue_channel(interaction)
+
         async with queue_state.queue_flow_lock:
             if queued_player not in current_queue:
                 await interaction.followup.send(
@@ -3994,7 +4139,7 @@ def register_queue_commands(bot, send_queue_panel):
             last_queue_action["message"] = None
             mark_queue_activity()
 
-            await refresh_configured_queue_panel(interaction)
+        schedule_queue_panel_refresh(queue_channel)
 
         await interaction.followup.send(
             f"Removed {member.mention} from queue.",
@@ -4783,9 +4928,6 @@ def register_queue_commands(bot, send_queue_panel):
 
         await interaction.response.defer(ephemeral=True)
 
-        active_thread_id = None
-        active_match = None
-
         try:
             backend_match = fetch_backend_match_by_number(match_number)
         except requests.RequestException:
@@ -4803,12 +4945,6 @@ def register_queue_commands(bot, send_queue_panel):
             return
 
         game_id = backend_match["id"]
-
-        for thread_id, match in active_matches_by_thread_id.items():
-            if match.get("backend_match_id") == game_id:
-                active_thread_id = thread_id
-                active_match = match
-                break
 
         try:
             revoked_match = revoke_backend_match(game_id)
@@ -4837,24 +4973,17 @@ def register_queue_commands(bot, send_queue_panel):
         for player in affected_players:
             await sync_player_discord_profile(player, interaction.guild.id)
 
-        if active_thread_id is not None:
-            active_matches_by_thread_id.pop(active_thread_id, None)
-            active_cancel_votes_by_thread_id.pop(active_thread_id, None)
-
-            thread = bot.get_channel(active_thread_id)
-
-            if active_match is not None:
-                bot.loop.create_task(
-                    remove_in_game_role_from_match(
-                        interaction.channel,
-                        active_match
-                    )
-                )
-
-            if isinstance(thread, discord.Thread):
-                await thread.delete(
-                    reason="Round Table match cancelled by admin"
-                )
+        await refresh_admin_panel_for_backend_match(revoked_match)
+        await cleanup_active_match_thread_for_backend_match(
+            revoked_match,
+            "Round Table match cancelled by admin",
+            interaction.channel
+        )
+        await report_match_cancelled(
+            interaction.user,
+            match_number,
+            "cancelled/revoked with `/admincancelgame`"
+        )
 
         await interaction.followup.send(
             (
@@ -4925,6 +5054,8 @@ def register_queue_commands(bot, send_queue_panel):
         for player in affected_players:
             await sync_player_discord_profile(player, interaction.guild.id)
 
+        await refresh_admin_panel_for_backend_match(changed_match)
+
         old_winner = changed_match.get("old_winner", "unknown")
         new_winner = changed_match.get("new_winner", "unknown")
 
@@ -4933,6 +5064,97 @@ def register_queue_commands(bot, send_queue_panel):
                 f"Queue `{match_number}` winner was changed from `{old_winner}` "
                 f"to `{new_winner}`. Recalculated Elo/streaks for "
                 f"{len(affected_players)} player(s)."
+            ),
+            ephemeral=True
+        )
+
+    @bot.tree.command(
+        name="adminsetcancelledwinner",
+        description="Admin: restore a cancelled queue by setting a winner"
+    )
+    async def adminsetcancelledwinner(
+        interaction: Interaction,
+        match_number: int,
+        winner: WinnerChoice
+    ):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "Only administrators can use this command.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            backend_match = fetch_backend_match_by_number(match_number)
+        except requests.RequestException:
+            await interaction.followup.send(
+                f"Could not look up queue `{match_number}`.",
+                ephemeral=True
+            )
+            return
+
+        if backend_match is None:
+            await interaction.followup.send(
+                f"Queue `{match_number}` was not found.",
+                ephemeral=True
+            )
+            return
+
+        game_id = backend_match["id"]
+
+        if backend_match.get("status") != "cancelled":
+            await interaction.followup.send(
+                f"Queue `{match_number}` is not cancelled.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            restored_match = set_cancelled_backend_match_winner(
+                game_id,
+                winner
+            )
+        except requests.HTTPError as error:
+            message = (
+                f"Could not set a winner for cancelled queue `{match_number}`."
+            )
+
+            if error.response is not None:
+                if error.response.status_code == 404:
+                    message = f"Queue `{match_number}` was not found."
+                else:
+                    try:
+                        error_data = error.response.json()
+                        message = error_data.get("error", message)
+                    except ValueError:
+                        pass
+
+            await interaction.followup.send(message, ephemeral=True)
+            return
+        except requests.RequestException:
+            await interaction.followup.send(
+                f"Could not set a winner for cancelled queue `{match_number}`.",
+                ephemeral=True
+            )
+            return
+
+        affected_players = restored_match.get("affected_players", [])
+
+        for player in affected_players:
+            await sync_player_discord_profile(player, interaction.guild.id)
+
+        admin_view = active_admin_match_views_by_match_id.get(game_id)
+
+        if admin_view is not None:
+            await admin_view.refresh_panel(restored_match)
+
+        await interaction.followup.send(
+            (
+                f"Queue `{match_number}` was restored with "
+                f"`{winner_label(winner)}` as winner. Calculated Elo/streaks "
+                f"for {len(affected_players)} player(s)."
             ),
             ephemeral=True
         )
@@ -4955,9 +5177,6 @@ def register_queue_commands(bot, send_queue_panel):
 
         await interaction.response.defer(ephemeral=True)
 
-        active_thread_id = None
-        active_match = None
-
         try:
             backend_match = fetch_backend_match_by_number(match_number)
         except requests.RequestException:
@@ -4975,12 +5194,6 @@ def register_queue_commands(bot, send_queue_panel):
             return
 
         game_id = backend_match["id"]
-
-        for thread_id, match in active_matches_by_thread_id.items():
-            if match.get("backend_match_id") == game_id:
-                active_thread_id = thread_id
-                active_match = match
-                break
 
         try:
             cancelled_match = punish_cancel_backend_match(
@@ -5014,27 +5227,23 @@ def register_queue_commands(bot, send_queue_panel):
         for player in affected_players:
             await sync_player_discord_profile(player, interaction.guild.id)
 
-        if active_thread_id is not None:
-            active_matches_by_thread_id.pop(active_thread_id, None)
-            active_cancel_votes_by_thread_id.pop(active_thread_id, None)
-
-            thread = bot.get_channel(active_thread_id)
-
-            if active_match is not None:
-                bot.loop.create_task(
-                    remove_in_game_role_from_match(
-                        interaction.channel,
-                        active_match
-                    )
-                )
-
-            if isinstance(thread, discord.Thread):
-                await thread.delete(
-                    reason="Round Table match cancelled by admin punishment"
-                )
+        await refresh_admin_panel_for_backend_match(cancelled_match)
+        await cleanup_active_match_thread_for_backend_match(
+            cancelled_match,
+            "Round Table match cancelled by admin punishment",
+            interaction.channel
+        )
 
         punished_player = cancelled_match.get("punished_player", {})
         punished_name = punished_player.get("username", member.display_name)
+        await report_match_cancelled(
+            interaction.user,
+            match_number,
+            (
+                "cancelled with `/admincancelbypunish` "
+                f"and punished {member.mention}"
+            )
+        )
 
         await interaction.followup.send(
             (
@@ -5063,9 +5272,6 @@ def register_queue_commands(bot, send_queue_panel):
 
         await interaction.response.defer(ephemeral=True)
 
-        active_thread_id = None
-        active_match = None
-
         try:
             backend_match = fetch_backend_match_by_number(match_number)
         except requests.RequestException:
@@ -5083,12 +5289,6 @@ def register_queue_commands(bot, send_queue_panel):
             return
 
         game_id = backend_match["id"]
-
-        for thread_id, match in active_matches_by_thread_id.items():
-            if match.get("backend_match_id") == game_id:
-                active_thread_id = thread_id
-                active_match = match
-                break
 
         try:
             punished_win_match = win_by_punish_backend_match(
@@ -5123,30 +5323,26 @@ def register_queue_commands(bot, send_queue_panel):
         for player in affected_players:
             await sync_player_discord_profile(player, interaction.guild.id)
 
-        if active_thread_id is not None:
-            active_matches_by_thread_id.pop(active_thread_id, None)
-            active_cancel_votes_by_thread_id.pop(active_thread_id, None)
-
-            thread = bot.get_channel(active_thread_id)
-
-            if active_match is not None:
-                bot.loop.create_task(
-                    remove_in_game_role_from_match(
-                        interaction.channel,
-                        active_match
-                    )
-                )
-
-            if isinstance(thread, discord.Thread):
-                await thread.delete(
-                    reason="Round Table match awarded by admin punishment"
-                )
+        await refresh_admin_panel_for_backend_match(punished_win_match)
+        await cleanup_active_match_thread_for_backend_match(
+            punished_win_match,
+            "Round Table match awarded by admin punishment",
+            interaction.channel
+        )
 
         punished_player = punished_win_match.get("punished_player", {})
         punished_name = punished_player.get("username", member.display_name)
         winning_team = punished_win_match.get("winning_team", "opposite team")
         award = punished_win_match.get("award_mmr_change", 15)
         punishment = abs(punished_win_match.get("punishment_mmr_change", -20))
+        await report_match_cancelled(
+            interaction.user,
+            match_number,
+            (
+                "cancelled with `/adminwinbypunish`, awarded "
+                f"`{winning_team}`, and punished {member.mention}"
+            )
+        )
 
         await interaction.followup.send(
             (
@@ -5402,6 +5598,8 @@ def register_queue_commands(bot, send_queue_panel):
             return
 
         removed_role_player_ids = set()
+        cancelled_match_discord_ids = set()
+        closed_thread_count = 0
 
         for match in cancelled_matches:
             for match_player in match["match_players"]:
@@ -5418,6 +5616,9 @@ def register_queue_commands(bot, send_queue_panel):
                     )
                     player_response.raise_for_status()
                     player = player_response.json()
+                    if player.get("discord_id") is not None:
+                        cancelled_match_discord_ids.add(str(player["discord_id"]))
+
                     member = await find_member(
                         bot,
                         player["discord_id"],
@@ -5440,12 +5641,32 @@ def register_queue_commands(bot, send_queue_panel):
                         f"player id {player_id}."
                     )
 
+            await refresh_admin_panel_for_backend_match(match)
+
+            if await cleanup_active_match_thread_for_backend_match(
+                match,
+                "Round Table pending match cancelled by admin"
+            ):
+                closed_thread_count += 1
+
+            await report_match_cancelled(
+                interaction.user,
+                display_match_number({}, match),
+                "cancelled with `/admincancelpendingmatches`"
+            )
+
         async with queue_state.queue_flow_lock:
-            reset_local_queue_state()
+            for discord_id in cancelled_match_discord_ids:
+                queue_state.active_match_discord_ids.discard(discord_id)
+
+            queue_state.match_result_pending = False
             await refresh_configured_queue_panel(interaction)
 
         await interaction.followup.send(
-            f"Cancelled {len(cancelled_matches)} pending match(es).",
+            (
+                f"Cancelled {len(cancelled_matches)} pending match(es). "
+                f"Closed {closed_thread_count} active thread(s)."
+            ),
             ephemeral=True
         )
 
