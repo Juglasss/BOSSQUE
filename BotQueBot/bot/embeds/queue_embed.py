@@ -42,9 +42,19 @@ def format_match_player(player):
     return f"{player.name} ({ign})"
 
 
-def format_result_player(player, backend_results):
-    result = backend_results.get(player.name)
+def result_for_player(player, backend_results):
+    backend_id = getattr(player, "backend_id", None)
 
+    if backend_id is not None:
+        result = backend_results.get(str(backend_id))
+
+        if result is not None:
+            return result
+
+    return backend_results.get(player.name)
+
+
+def format_result_player(player, result=None):
     if result is not None and result.get("player_discord_id"):
         return f"<@{result['player_discord_id']}>"
 
@@ -143,30 +153,41 @@ def result_lookup_for_team(match, team_key):
     if backend_match is None:
         return {}
 
-    return {
-        match_player["player_username"]: match_player
-        for match_player in backend_match["match_players"]
-        if match_player["team"] == team_key
-    }
+    results = {}
+
+    for match_player in backend_match["match_players"]:
+        if match_player["team"] != team_key:
+            continue
+
+        results[str(match_player["player"])] = match_player
+        results[match_player["player_username"]] = match_player
+
+    return results
 
 
 def format_result_team(team, backend_results):
     lines = []
 
     for player in team:
-        result = backend_results.get(player.name)
-        player_name = format_result_player(player, backend_results)
+        result = result_for_player(player, backend_results)
+        player_name = format_result_player(player, result)
 
         if result is None:
             lines.append(f"* {player_name}")
             continue
 
+        mmr_before = result.get("mmr_before")
+        mmr_after = result.get("mmr_after")
         mmr_change = result.get("mmr_change")
         sign = "+" if mmr_change and mmr_change > 0 else ""
 
+        if mmr_before is None or mmr_after is None or mmr_change is None:
+            lines.append(f"* {player_name}")
+            continue
+
         lines.append(
-            f"* {player_name} {sign}{mmr_change:.1f} "
-            f"**({result['mmr_after']:.1f})**"
+            f"* {player_name} `{mmr_before:.1f}` -> "
+            f"**{sign}{mmr_change:.1f}** -> **{mmr_after:.1f}**"
         )
 
     return "\n".join(lines)

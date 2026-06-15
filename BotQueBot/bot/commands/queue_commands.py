@@ -1864,9 +1864,7 @@ def register_queue_commands(bot, send_queue_panel):
             player = None
 
             try:
-                player = find_backend_player_by_username(
-                    match_player["player_username"]
-                )
+                player = find_backend_player_by_id(match_player["player"])
             except requests.RequestException:
                 await send_bot_report(
                     "Could not load backend player after match for "
