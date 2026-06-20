@@ -113,8 +113,12 @@ def base_display_name(member):
     return ELO_SUFFIX_PATTERN.sub("", member.display_name).strip()
 
 
+def nickname_mmr_number(mmr):
+    return int(float(mmr))
+
+
 def nickname_with_elo(member, player):
-    suffix = f" - ({int(float(player['mmr']))})"
+    suffix = f" - ({nickname_mmr_number(player['mmr'])})"
     base_name = base_display_name(member)
     max_base_length = DISCORD_NICKNAME_LIMIT - len(suffix)
 

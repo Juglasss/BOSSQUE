@@ -218,18 +218,72 @@ async def remove_in_queue_role(member):
     )
 
 
+def member_is_in_current_queue(member_id):
+    return any(
+        str(player.get("discord_id")) == str(member_id)
+        for player in current_queue
+    )
+
+
+async def sync_in_queue_role(member):
+    async with queue_state.in_queue_role_lock(member.guild.id, member.id):
+        if member_is_in_current_queue(member.id):
+            await add_in_queue_role(member)
+        else:
+            await remove_in_queue_role(member)
+
+
 async def add_in_queue_role_background(member):
     try:
-        await add_in_queue_role(member)
+        await sync_in_queue_role(member)
     except discord.HTTPException:
         pass
 
 
 async def remove_in_queue_role_background(member):
     try:
-        await remove_in_queue_role(member)
+        await sync_in_queue_role(member)
     except discord.HTTPException:
         pass
+
+
+async def sync_all_in_queue_roles(guild_ids):
+    for guild_id in guild_ids:
+        guild = bot.get_guild(guild_id)
+
+        if guild is None:
+            continue
+
+        role_id = in_queue_role_id(guild_id)
+        role = guild.get_role(role_id) if role_id else None
+
+        if role is None:
+            continue
+
+        members_by_id = {
+            member.id: member
+            for member in role.members
+        }
+
+        for player in current_queue:
+            discord_id = player.get("discord_id")
+
+            if discord_id is None:
+                continue
+
+            try:
+                member = await find_member(bot, discord_id, guild_id)
+            except (discord.HTTPException, ValueError):
+                continue
+
+            if member is not None:
+                members_by_id[member.id] = member
+
+        for member in members_by_id.values():
+            try:
+                await sync_in_queue_role(member)
+            except discord.HTTPException:
+                pass
 
 
 def mark_queue_activity():
@@ -552,6 +606,7 @@ async def on_ready():
         rating_decay_task = bot.loop.create_task(watch_rating_decay())
 
     await warm_member_cache(bot, active_configured_guild_ids)
+    await sync_all_in_queue_roles(active_configured_guild_ids)
 
     try:
         players = all_backend_players()
@@ -638,7 +693,7 @@ async def watch_queue_inactivity():
                     if member is None:
                         continue
 
-                    await remove_in_queue_role(member)
+                    await sync_in_queue_role(member)
                 except (discord.HTTPException, ValueError):
                     pass
 

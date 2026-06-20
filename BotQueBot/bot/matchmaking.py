@@ -84,11 +84,8 @@ def average_team_elo(team):
     return team_elo(team) / len(team)
 
 
-def normalize_team_order(match):
-    team_1_avg = average_team_elo(match["team_1"])
-    team_2_avg = average_team_elo(match["team_2"])
-
-    if team_1_avg <= team_2_avg:
+def randomize_team_order(match):
+    if not choice((False, True)):
         return match
 
     match["team_1"], match["team_2"] = match["team_2"], match["team_1"]
@@ -394,7 +391,7 @@ def find_best_match_for_players(players, elo_range=15):
     best_match["final_elo_range"] = final_elo_range
     best_match["elo_range_expanded"] = final_elo_range > starting_elo_range
     best_match["map"] = choice(PALADINS_MAPS)
-    normalize_team_order(best_match)
+    randomize_team_order(best_match)
 
     return best_match
 

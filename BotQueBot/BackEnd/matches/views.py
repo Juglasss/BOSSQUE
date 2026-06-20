@@ -292,6 +292,8 @@ def revoke_completed_match(match):
         player.save()
         affected_players.append(player)
 
+    reset_match_players_to_original_mmr(match)
+
     return affected_players
 
 

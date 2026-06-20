@@ -213,6 +213,38 @@ def register_queue_commands(bot, send_queue_panel):
         except discord.HTTPException:
             pass
 
+    async def send_registration_report(
+        interaction,
+        player,
+        neatqueue_source_mmr=None,
+        imported_from_neatqueue=False,
+    ):
+        neatqueue_text = "No"
+
+        if imported_from_neatqueue:
+            neatqueue_text = (
+                f"Yes ({float(neatqueue_source_mmr)} -> {float(player['mmr'])})"
+            )
+
+        await send_bot_report(
+            (
+                "**Player registered** | "
+                f"Discord: {interaction.user.mention} "
+                f"(`{interaction.user.id}`) | "
+                f"Discord username: `{interaction.user}` | "
+                f"Display name: `{interaction.user.display_name}` | "
+                f"Backend player ID: `{player['id']}` | "
+                f"Backend username: `{player['username']}` | "
+                f"IGN: `{player['ign']}` | "
+                f"Region: `{player['region']}` | "
+                f"Role: `{player['role_preference']}` | "
+                f"MMR: `{float(player['mmr'])}` | "
+                f"Rank: `{player.get('rank_display') or player.get('rank')}` | "
+                f"Imported from NeatQueue: `{neatqueue_text}`"
+            ),
+            interaction,
+        )
+
     async def send_match_result(embed, context=None):
         guild_id = guild_id_from_context(context)
 
@@ -1002,6 +1034,19 @@ def register_queue_commands(bot, send_queue_panel):
             reason="Round Table queue left"
         )
 
+    def member_is_in_current_queue(member_id):
+        return any(
+            str(player.get("discord_id")) == str(member_id)
+            for player in current_queue
+        )
+
+    async def sync_in_queue_role(member):
+        async with queue_state.in_queue_role_lock(member.guild.id, member.id):
+            if member_is_in_current_queue(member.id):
+                await add_in_queue_role(member)
+            else:
+                await remove_in_queue_role(member)
+
     async def add_in_queue_role_to_players(channel, players):
         for player in players:
             if player.get("discord_id") is None:
@@ -1017,10 +1062,11 @@ def register_queue_commands(bot, send_queue_panel):
                 if member is None:
                     continue
 
-                await add_in_queue_role(member)
+                await sync_in_queue_role(member)
             except (discord.Forbidden, discord.HTTPException, ValueError):
                 await send_bot_report(
-                    f"Could not add the in-queue role to {player['username']}.",
+                    "Could not synchronize the in-queue role for "
+                    f"{player['username']}.",
                     channel
                 )
 
@@ -1039,10 +1085,11 @@ def register_queue_commands(bot, send_queue_panel):
                 if member is None:
                     continue
 
-                await remove_in_queue_role(member)
+                await sync_in_queue_role(member)
             except (discord.Forbidden, discord.HTTPException, ValueError):
                 await send_bot_report(
-                    f"Could not remove the in-queue role from {player['username']}.",
+                    "Could not synchronize the in-queue role for "
+                    f"{player['username']}.",
                     channel
                 )
 
@@ -2068,6 +2115,45 @@ def register_queue_commands(bot, send_queue_panel):
             f"{actor.mention} {action} Queue `{match_number}`."
         )
 
+    async def report_admin_panel_action(interaction, match_number, action):
+        await send_bot_report(
+            (
+                "**Admin panel action** | "
+                f"Admin: {interaction.user.mention} "
+                f"(`{interaction.user.id}`) | "
+                f"Queue: `{match_number}` | "
+                f"Action: {action}"
+            ),
+            interaction,
+        )
+
+    async def report_punish_admin_command(
+        interaction,
+        command_name,
+        match_number,
+        punished_member,
+        action,
+        winning_team=None,
+    ):
+        winning_team_line = (
+            f" | Winning team: `{winning_team}`"
+            if winning_team is not None
+            else ""
+        )
+        await send_bot_report(
+            (
+                f"**{command_name} used** | "
+                f"Admin: {interaction.user.mention} "
+                f"(`{interaction.user.id}`) | "
+                f"Queue: `{match_number}` | "
+                f"Punished player: {punished_member.mention} "
+                f"(`{punished_member.id}`) | "
+                f"Action: {action}"
+                f"{winning_team_line}"
+            ),
+            interaction,
+        )
+
     def winner_label(winner_key):
         return "Team 1" if winner_key == "team_1" else "Team 2"
 
@@ -2178,10 +2264,10 @@ def register_queue_commands(bot, send_queue_panel):
                 backend_match,
                 f"Queue `{self.match_id}` was cancelled/reverted."
             )
-            await report_match_cancelled(
-                interaction.user,
+            await report_admin_panel_action(
+                interaction,
                 display_match_number(self.match, backend_match),
-                "cancelled/reverted from the admin panel"
+                "`Revert/Cancel` clicked. Match cancelled/reverted."
             )
 
             if self.match_thread is not None:
@@ -2261,6 +2347,11 @@ def register_queue_commands(bot, send_queue_panel):
                 interaction,
                 backend_match,
                 f"Queue `{self.match_id}` was set to `{winner}`."
+            )
+            await report_admin_panel_action(
+                interaction,
+                display_match_number(self.match, backend_match),
+                f"`{winner}` clicked. Winner set from the admin panel."
             )
 
             if self.match_thread is not None:
@@ -2343,6 +2434,7 @@ def register_queue_commands(bot, send_queue_panel):
                 return
 
             self.completed = True
+            match_number = display_match_number(self.match)
 
             try:
                 await interaction.response.defer()
@@ -2354,6 +2446,16 @@ def register_queue_commands(bot, send_queue_panel):
                     interaction.channel,
                     self.match
                 )
+            )
+
+            await send_bot_report(
+                (
+                    "**Match result vote** | "
+                    f"Discord: `{interaction.user.display_name}` | "
+                    f"Queue: `{match_number}` | "
+                    f"Voted winner: `{winner}`"
+                ),
+                interaction.channel,
             )
 
             for item in self.children:
@@ -3475,8 +3577,6 @@ def register_queue_commands(bot, send_queue_panel):
         return thread
 
     async def dm_ready_check_players(players, thread):
-        failed_players = []
-
         for player in players:
             discord_id = player.get("discord_id")
 
@@ -3487,23 +3587,14 @@ def register_queue_commands(bot, send_queue_panel):
                 member = await find_member(bot, discord_id, thread.guild.id)
 
                 if member is None:
-                    failed_players.append(player.get("username", str(discord_id)))
                     continue
 
                 await member.send(
-                    "Queue ready-check is ready. Please accept the queue."
+                    "Queue ready-check is ready. Please accept the queue.\n"
+                    f"Join the ready check here: {thread.jump_url}"
                 )
             except (discord.Forbidden, discord.HTTPException, ValueError):
-                failed_players.append(player.get("username", str(discord_id)))
-
-        if failed_players:
-            await send_bot_report(
-                (
-                    "Could not DM ready-check notification to: "
-                    f"{', '.join(failed_players)}."
-                ),
-                thread,
-            )
+                continue
 
     async def create_match_if_queue_ready(channel, lock_already_held=False):
         if lock_already_held:
@@ -5270,13 +5361,12 @@ def register_queue_commands(bot, send_queue_panel):
 
         punished_player = cancelled_match.get("punished_player", {})
         punished_name = punished_player.get("username", member.display_name)
-        await report_match_cancelled(
-            interaction.user,
+        await report_punish_admin_command(
+            interaction,
+            "/admincancelbypunish",
             match_number,
-            (
-                "cancelled with `/admincancelbypunish` "
-                f"and punished {member.mention}"
-            )
+            member,
+            "Cancelled/refunded the match and applied the punishment."
         )
 
         await interaction.followup.send(
@@ -5369,13 +5459,13 @@ def register_queue_commands(bot, send_queue_panel):
         winning_team = punished_win_match.get("winning_team", "opposite team")
         award = punished_win_match.get("award_mmr_change", 15)
         punishment = abs(punished_win_match.get("punishment_mmr_change", -20))
-        await report_match_cancelled(
-            interaction.user,
+        await report_punish_admin_command(
+            interaction,
+            "/adminwinbypunish",
             match_number,
-            (
-                "cancelled with `/adminwinbypunish`, awarded "
-                f"`{winning_team}`, and punished {member.mention}"
-            )
+            member,
+            "Cancelled the match, awarded the opposite team, and applied the punishment.",
+            winning_team,
         )
 
         await interaction.followup.send(
@@ -5919,6 +6009,13 @@ def register_queue_commands(bot, send_queue_panel):
             await send_bot_report(
                 f"Could not update rank role for {updated_player['username']}."
             )
+
+        await send_registration_report(
+            interaction,
+            updated_player,
+            neatqueue_source_mmr,
+            imported_from_neatqueue,
+        )
 
         await interaction.response.send_message(
             (

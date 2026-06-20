@@ -1,5 +1,6 @@
 import discord
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from queue_state import last_queue_action
 
 
@@ -18,6 +19,29 @@ def display_match_number(match, backend_match=None):
         or match.get("backend_match_id")
         or backend_match.get("id")
     )
+
+
+def display_mmr(value):
+    if value is None:
+        return None
+
+    return Decimal(str(value)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def format_mmr(value):
+    displayed_value = display_mmr(value)
+
+    if displayed_value is None:
+        return "None"
+
+    return format(displayed_value, ".1f")
+
+
+def format_displayed_mmr_change(mmr_before, mmr_after):
+    displayed_change = display_mmr(mmr_after) - display_mmr(mmr_before)
+    sign = "+" if displayed_change > 0 else ""
+
+    return f"{sign}{format(displayed_change, '.1f')}"
 
 
 def format_queue_player(player):
@@ -178,17 +202,20 @@ def format_result_team(team, backend_results):
 
         mmr_after = result.get("mmr_after")
         mmr_change = result.get("mmr_change")
-        sign = "+" if mmr_change and mmr_change > 0 else ""
 
         if mmr_after is None or mmr_change is None:
             lines.append(f"* {player_name}")
             continue
 
-        previous_mmr = mmr_after - mmr_change
+        previous_mmr = result.get("mmr_before")
+
+        if previous_mmr is None:
+            previous_mmr = mmr_after - mmr_change
 
         lines.append(
-            f"* {player_name} `{previous_mmr:.1f}` -> "
-            f"**{sign}{mmr_change:.1f}** -> **{mmr_after:.1f}**"
+            f"* {player_name} `{format_mmr(previous_mmr)}` -> "
+            f"**{format_displayed_mmr_change(previous_mmr, mmr_after)}** -> "
+            f"**{format_mmr(mmr_after)}**"
         )
 
     return "\n".join(lines)
@@ -213,13 +240,13 @@ def build_match_embed(match):
     team_2_avg = sum(p.elo for p in match["team_2"]) / 5
 
     embed.add_field(
-        name=f"Team 1 - {team_1_avg:.1f} avg",
+        name=f"Team 1 - {format_mmr(team_1_avg)} avg",
         value=format_team(match["team_1"], match.get("team_1_roles", {})),
         inline=True
     )
 
     embed.add_field(
-        name=f"Team 2 - {team_2_avg:.1f} avg",
+        name=f"Team 2 - {format_mmr(team_2_avg)} avg",
         value=format_team(match["team_2"], match.get("team_2_roles", {})),
         inline=True
     )
@@ -239,18 +266,19 @@ def admin_match_player_line(match_player, match_cancelled=False):
     player_name = f"<@{discord_id}>" if discord_id else name
     mmr_before = match_player.get("mmr_before")
     mmr_after = match_player.get("mmr_after")
-    mmr_change = match_player.get("mmr_change") or 0
 
     if mmr_after is None:
         if match_cancelled:
-            return f"{player_name} start {mmr_before:.1f} | **+0.0**"
+            return (
+                f"{player_name} start {format_mmr(mmr_before)} | **+0.0**"
+            )
 
-        return f"{player_name} start {mmr_before:.1f} | pending"
+        return f"{player_name} start {format_mmr(mmr_before)} | pending"
 
-    sign = "+" if mmr_change > 0 else ""
     return (
-        f"{player_name} start {mmr_before:.1f} | "
-        f"**{sign}{mmr_change:.1f}** | now {mmr_after:.1f}"
+        f"{player_name} start {format_mmr(mmr_before)} | "
+        f"**{format_displayed_mmr_change(mmr_before, mmr_after)}** | "
+        f"now {format_mmr(mmr_after)}"
     )
 
 
